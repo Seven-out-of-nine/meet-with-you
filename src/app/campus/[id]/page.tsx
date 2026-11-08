@@ -1,0 +1,28 @@
+/* eslint-disable @next/next/no-assign-module-variable */
+import Link from "next/link";
+import { CheckCircle2, Flag, MapPin, Send, UserRoundCheck } from "lucide-react";
+import { notFound } from "next/navigation";
+import { respondToHubPostAction, reportContentAction } from "@/app/actions/hub";
+import { Avatar } from "@/components/avatar";
+import { MessageBanner } from "@/components/message-banner";
+import { SubmitButton } from "@/components/submit-button";
+import { getCurrentUser } from "@/lib/auth";
+import { getHubModule, HUB_STATUS_LABELS } from "@/lib/constants";
+import { getHubPost, getHubResponseForUser, getHubResponses } from "@/lib/data";
+import { formatRelative } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
+
+export default async function CampusDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; success?: string }> }) {
+  const [{ id }, query, user] = await Promise.all([params, searchParams, getCurrentUser()]);
+  const post = getHubPost(Number(id), user?.role === "ADMIN");
+  if (!post) notFound();
+  const module = getHubModule(post.module);
+  const responses = getHubResponses(post.id);
+  const existing = user ? getHubResponseForUser(post.id, user.id) : undefined;
+  const isOwner = user?.id === post.user_id;
+  const canSeeContact = isOwner || user?.id === post.assignee_id || post.module === "SECOND_HAND";
+  let metadata: Record<string, string> = {};
+  try { metadata = JSON.parse(post.metadata) as Record<string, string>; } catch {}
+  return <div className="page-shell"><div className="container detail-layout"><article className="detail-main"><MessageBanner error={query.error} success={query.success} /><div className="detail-card"><div className="card-topline"><span className="category-pill"><span>{module.icon}</span>{module.label}</span><span className={`status status-${post.status.toLowerCase()}`}>{HUB_STATUS_LABELS[post.status]}</span></div><h1>{post.title}</h1><div className="author-profile"><Avatar name={post.nickname} /><div><strong>{post.nickname}</strong><p>校园互助发布者</p></div><small>{formatRelative(post.created_at)}发布</small></div><div className="detail-meta">{post.price !== null ? <span><strong className="big-price">¥ {post.price.toFixed(2)}</strong><small>{post.module === "SECOND_HAND" ? "发布价格" : "预算 / 报酬"}</small></span> : null}{post.location ? <span><MapPin /><small>地点</small><strong>{post.location}</strong></span> : null}{metadata.expectedTime ? <span><CheckCircle2 /><small>期望时间</small><strong>{metadata.expectedTime}</strong></span> : null}</div><section className="prose-section"><h2>详细说明</h2><p>{post.description}</p></section>{metadata.itemType || metadata.courseOut || metadata.courseIn ? <section className="data-list">{metadata.itemType ? <div><span>物品类别</span><strong>{metadata.itemType}</strong></div> : null}{metadata.courseOut ? <div><span>换出课程</span><strong>{metadata.courseOut}</strong></div> : null}{metadata.courseIn ? <div><span>期望换入</span><strong>{metadata.courseIn}</strong></div> : null}</section> : null}{canSeeContact && post.module !== "QUESTION" ? <div className="contact-reveal"><UserRoundCheck /><div><strong>联系方式</strong><p>{post.contact || "发布者暂未填写"}</p></div></div> : null}</div><section className="comments-section"><div className="section-heading compact"><div><span className="eyebrow">{post.module === "QUESTION" ? "公开回答" : "互助响应"}</span><h2>{responses.length} 条{post.module === "QUESTION" ? "回答" : "响应"}</h2></div></div><div className="comment-list">{responses.map((response) => <div className="comment" key={response.id}><Avatar name={response.nickname} size="sm" /><div><div className="response-title"><strong>{response.nickname}</strong><span className={`application-state ${response.status.toLowerCase()}`}>{response.status === "PENDING" ? "待确认" : response.status === "ACCEPTED" ? "已采纳" : "未采纳"}</span></div><p>{response.content}</p><small>{formatRelative(response.created_at)}</small></div></div>)}</div></section></article><aside className="detail-sidebar"><div className="sticky-panel"><span className="visual-icon">{module.icon}</span><h2>{isOwner ? "管理这条信息" : module.action}</h2>{isOwner ? <><p>在“我的互助”中确认响应者、更新进度或结束订单。</p><Link className="button primary full" href="/campus/manage">前往管理</Link></> : existing ? <><p>你的响应状态</p><span className={`application-state ${existing.status.toLowerCase()}`}>{existing.status === "PENDING" ? "等待发布者确认" : existing.status === "ACCEPTED" ? "合作已确认" : "本次未通过"}</span></> : user ? <form action={respondToHubPostAction} className="form-stack compact"><input type="hidden" name="postId" value={post.id} /><label>{post.module === "QUESTION" ? "写下你的回答" : "给发布者留言"}<textarea name="content" minLength={2} maxLength={800} rows={5} required placeholder={post.module === "QUESTION" ? "分享准确、友善的校园经验…" : "介绍你能提供的帮助和时间安排…"} /></label><SubmitButton pendingText="正在发送…"><Send size={16} />{post.module === "QUESTION" ? "发布回答" : "发送响应"}</SubmitButton></form> : <><p>登录后可以响应这条校园互助信息。</p><Link className="button primary full" href={`/login?next=/campus/${post.id}`}>登录并响应</Link></>}<div className="safety-tip"><strong>交易提醒</strong><p>优先校内公共场所当面交接，核验物品后再付款，平台不提供资金担保。</p></div>{user && !isOwner ? <details className="report-details"><summary><Flag size={14} />举报内容</summary><form action={reportContentAction} className="form-stack compact"><input type="hidden" name="targetType" value="HUB" /><input type="hidden" name="targetId" value={post.id} /><textarea name="reason" required minLength={4} rows={3} placeholder="请说明原因" /><button className="button ghost small" type="submit">提交举报</button></form></details> : null}</div></aside></div></div>;
+}

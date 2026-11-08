@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+/.pnpm-store
+
+# Next.js build output
+/.next
+/out
+
+# local runtime data
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+
+# local environment
+.env
+.env.local
+.env.*.local
+
+# test and editor output
+/coverage
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+
+# source materials and one-off extraction helpers
+/planning-source
+/.codex-tmp
